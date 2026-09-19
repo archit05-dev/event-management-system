@@ -2,8 +2,10 @@ package com.example.eventmanagement.controller;
 
 import com.example.eventmanagement.dto.EventRequest;
 import com.example.eventmanagement.entity.Event;
+import com.example.eventmanagement.enums.EventStatus;
 import com.example.eventmanagement.service.EventService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,8 +28,24 @@ public class EventController {
     }
 
     @GetMapping
-    public List<Event> getAllEvents() {
-        return eventService.getAllEvents();
+    public Page<Event> getAllEvents(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String venue,
+            @RequestParam(required = false) EventStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "startDateTime") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        return eventService.getAllEvents(
+                search,
+                venue,
+                status,
+                page,
+                limit,
+                sortBy,
+                direction
+        );
     }
 
     @GetMapping("/{id}")

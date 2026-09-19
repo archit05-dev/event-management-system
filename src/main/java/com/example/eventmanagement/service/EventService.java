@@ -10,6 +10,11 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 @Service
 public class EventService {
 
@@ -21,12 +26,26 @@ public class EventService {
 
     public Event createEvent(EventRequest request) {
 
-
         if (!request.getEndDateTime().isAfter(request.getStartDateTime())) {
             throw new IllegalArgumentException(
                     "End date and time must be after start date and time"
             );
         }
+
+        List<Event> overlappingEvents =
+                eventRepository
+                        .findByVenueAndStartDateTimeLessThanAndEndDateTimeGreaterThan(
+                                request.getVenue(),
+                                request.getEndDateTime(),
+                                request.getStartDateTime()
+                        );
+
+        if (hasOverlappingActiveEvent(overlappingEvents)) {
+            throw new IllegalStateException(
+                    "Another active event is already scheduled at this venue during the selected time"
+            );
+        }
+
 
         Event event = new Event();
 
@@ -47,8 +66,56 @@ public class EventService {
     }
 
 
-    public List<Event> getAllEvents() {
-        return eventRepository.findAll();
+    public Page<Event> getAllEvents(
+            String search,
+            String venue,
+            EventStatus status,
+            int page,
+            int limit,
+            String sortBy,
+            String direction
+    ) {
+
+        if (page < 0) {
+            throw new IllegalArgumentException("Page must be zero or greater");
+        }
+
+        if (limit < 1) {
+            throw new IllegalArgumentException("Limit must be greater than zero");
+        }
+
+        Sort.Direction sortDirection;
+
+        try {
+            sortDirection = Sort.Direction.fromString(direction);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "Direction must be either asc or desc"
+            );
+        }
+
+        Sort sort = Sort.by(sortDirection, sortBy);
+        Pageable pageable = PageRequest.of(page, limit, sort);
+
+        String searchValue = search == null ? "" : search;
+        String venueValue = venue == null ? "" : venue;
+
+        if (status != null) {
+            return eventRepository
+                    .findByNameContainingIgnoreCaseAndVenueContainingIgnoreCaseAndStatus(
+                            searchValue,
+                            venueValue,
+                            status,
+                            pageable
+                    );
+        }
+
+        return eventRepository
+                .findByNameContainingIgnoreCaseAndVenueContainingIgnoreCase(
+                        searchValue,
+                        venueValue,
+                        pageable
+                );
     }
 
     public Event getEventById(Long id) {
@@ -68,12 +135,27 @@ public class EventService {
             );
         }
 
-
         if (!request.getEndDateTime().isAfter(request.getStartDateTime())) {
             throw new IllegalArgumentException(
                     "End date and time must be after start date and time"
             );
         }
+
+        List<Event> overlappingEvents =
+                eventRepository
+                        .findByVenueAndStartDateTimeLessThanAndEndDateTimeGreaterThanAndIdNot(
+                                request.getVenue(),
+                                request.getEndDateTime(),
+                                request.getStartDateTime(),
+                                id
+                        );
+
+        if (hasOverlappingActiveEvent(overlappingEvents)) {
+            throw new IllegalStateException(
+                    "Another active event is already scheduled at this venue during the selected time"
+            );
+        }
+
 
         event.setName(request.getName());
         event.setDescription(request.getDescription());
@@ -124,6 +206,14 @@ public class EventService {
         event.setUpdatedAt(LocalDateTime.now());
 
         return eventRepository.save(event);
+    }
+
+    private boolean hasOverlappingActiveEvent(List<Event> events) {
+        return events.stream()
+                .anyMatch(event ->
+                        event.getStatus() == EventStatus.UPCOMING
+                                || event.getStatus() == EventStatus.ONGOING
+                );
     }
 
 }
