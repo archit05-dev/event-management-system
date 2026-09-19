@@ -226,6 +226,12 @@ The API was tested using Postman, including:
 
 The project includes a Postman collection containing the main API requests and edge-case tests.
 
+The collection is available in:
+
+```text
+postman/Event-Management-API.postman_collection.json
+```
+
 ## Author
  
 Archit Singhal 
